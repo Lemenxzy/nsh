@@ -213,6 +213,28 @@ view.load(Bundle::source(code).into());
 `nsh_core::element::desktop::restart()`（TS：`Application.restart()`）以同样的方式退出，进程结束后由 `run_app`
 以相同的参数重新启动应用：`.app` 包里的应用通过 Launch Services（`open -n`）打开，与用户打开它时相同。
 
+### 响应退出请求
+
+默认情况下，退出菜单项、Command-Q、Dock 的退出和注销都会立即退出应用。有不能丢弃的工作（未保存的修改、正在进行的操作）的应用，
+可以把主窗口的 `quitOnRequest` 设为 `false`，在窗口和引擎仍在运行时收到每次请求，就像 `closeOnPress: false` 让应用响应关闭一样：
+
+```tsx
+const main = currentWindow();
+main.set({ quitOnRequest: false });
+main.on("quitRequest", ({ reason }) => {
+  // reason："menu"（退出菜单项、Command-Q）、"dock"（Dock、其他应用）、"system"（注销、关机）
+  if (!hasUnsavedChanges()) Application.quit();
+  else showSaveDialog(); // 保存后调用 Application.quit()；取消则应用继续运行
+});
+```
+
+Rust 中：`main_window().set(WindowAttributes { quit_on_request: Some(false), ..Default::default() })` 和
+`main_window().on_quit_request(|reason| ..)`（`QuitReason`），然后调用 `quit()`。只有主窗口会收到。与 Electron 中被阻止的
+`before-quit` 一样，NSH 会立即拒绝 AppKit 的 `applicationShouldTerminate:`，应用调用 `quit()` 时才退出：注销期间 macOS
+会提示该应用中止了注销，应用退出后用户再次注销即可。Windows 上退出菜单项和 Ctrl+Q 同样会询问应用，结束会话时会等待应用
+（`WM_QUERYENDSESSION`，`reason: "system"`）；Linux 上退出菜单项和 Ctrl+Q 会询问应用，注销不会（没有会话抑制器）。
+嵌入其他应用的视图、GPUI 宿主、移动端和 Web 由宿主负责退出：`quitOnRequest` 在那里不起作用。
+
 `AppOptions { transparent: true, ..Default::default() }` 为自定义 Rust 宿主的 `run_app` 窗口提供透明的初始默认值，让未绘制的区域显示窗口后面的内容。显式主窗口属性及后续窗口更新优先于这个默认值。标准宿主保持此选项为 `false`，但可以通过窗口配置请求透明；视图的 `behindWindow` 材质本身不会让窗口透明。
 嵌入的 `AppView` 不会改动它所在的窗口：需要同样效果时，请把自己的 `NSWindow` 设为 nonopaque，并给它透明的 `backgroundColor`。
 

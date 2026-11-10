@@ -55,8 +55,9 @@ use crate::{
     Command, EventKind, EventPayload,
     desktop::{
         self, CloseReason, DesktopCommand, Display, DisplayId, MenuAction, MenuBarMode, MenuRole,
-        Shortcut, WindowAttributes, WindowCloseCause, WindowEvent, WindowFrame, WindowKind,
-        WindowMode, WindowOptions, WindowPlacement, WindowPosition, WindowRequest, WindowState,
+        QuitReason, Shortcut, WindowAttributes, WindowCloseCause, WindowEvent, WindowFrame,
+        WindowKind, WindowMode, WindowOptions, WindowPlacement, WindowPosition, WindowRequest,
+        WindowState,
     },
     geometry::{Bounds, Edges, Point, Points, Size},
     keymap::When,
@@ -351,6 +352,39 @@ impl WindowRef {
         let signal = self
             .close_press
             .unwrap_or_else(super::ambient::main_close_press_signal);
+        let seen = super::stored(signal.with_untracked(|(count, _)| *count));
+        super::effect(move || {
+            let (count, reason) = signal.get();
+            if seen.replace(count) != count {
+                super::untracked(|| f(reason));
+            }
+        });
+    }
+
+    /// Runs `f` with the reason each time the user or the system asks to
+    /// quit the app (the Quit item or the quit key, the Dock's Quit,
+    /// logging out or shutting down), under the current owner (TS:
+    /// `on("quitRequest", …)`). The main window's only: a window of the
+    /// app's own never hears it. Reported while the main window's
+    /// `quit_on_request` is `false`, when the app is still running: save or
+    /// ask in its window, then [`quit`], or keep running.
+    ///
+    /// ```ignore
+    /// let main = main_window();
+    /// main.set(WindowAttributes { quit_on_request: Some(false), ..Default::default() });
+    /// main.on_quit_request(move |_reason| {
+    ///     if !unsaved.get_untracked() {
+    ///         quit();
+    ///     } else {
+    ///         ask_to_save.set(true);
+    ///     }
+    /// });
+    /// ```
+    pub fn on_quit_request(&self, f: impl Fn(QuitReason) + 'static) {
+        if self.close_press.is_some() {
+            return;
+        }
+        let signal = super::ambient::quit_request_signal();
         let seen = super::stored(signal.with_untracked(|(count, _)| *count));
         super::effect(move || {
             let (count, reason) = signal.get();
@@ -700,6 +734,8 @@ impl IntoElement for Window {
                                 }
                             }
                             WindowEvent::Closed { cause } => close(*cause),
+                            // The main window's only.
+                            WindowEvent::QuitRequest { .. } => {}
                         }
                     }),
                 ));
@@ -932,8 +968,10 @@ impl super::Component for OpenedWindowsHost {
 /// its windows close and the engine stops as when the last window closes
 /// (an embedding app's close handling runs as it does for the Quit item),
 /// then the app's run ends, also when closing the window alone would leave
-/// it running (a window kept hidden for the Dock, a tray icon). As with the
-/// Quit item, the app cannot cancel it; a GPUI host that owns the window is
+/// it running (a window kept hidden for the Dock, a tray icon). It is the
+/// app's answer to a quit request it asked to hear (the main window's
+/// `quit_on_request: false`, [`WindowRef::on_quit_request`]); once called
+/// the app cannot cancel it; a GPUI host that owns the window is
 /// asked first and quits when it is ready. For a menu item or a button of
 /// the app's own that quits, and for restarting after an update. A view
 /// embedded in another app leaves the app's lifecycle to that app. On

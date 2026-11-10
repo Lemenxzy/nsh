@@ -55,6 +55,9 @@ pub(crate) struct Ambient {
     /// The main window's close presses: how many, and the last one's
     /// reason ([`crate::element::desktop::WindowRef::on_close_press`]).
     main_close_press: Option<Signal<(u64, crate::desktop::CloseReason)>>,
+    /// The requests to quit the app: how many, and the last one's reason
+    /// ([`crate::element::desktop::on_quit_request`]).
+    quit_request: Option<Signal<(u64, crate::desktop::QuitReason)>>,
     /// The app's address (`set_app_url` resolves against its page base).
     app_url: Option<crate::url_scheme::AppUrlCell>,
 }
@@ -185,6 +188,15 @@ impl super::Runtime {
     pub(crate) fn main_close_pressed(&self, reason: crate::desktop::CloseReason) {
         let _entered = self.enter();
         main_close_press_signal().update(|(count, last)| {
+            *count += 1;
+            *last = reason;
+        });
+    }
+
+    /// The user or the system asked to quit: what listens hears it.
+    pub(crate) fn quit_requested(&self, reason: crate::desktop::QuitReason) {
+        let _entered = self.enter();
+        quit_request_signal().update(|(count, last)| {
             *count += 1;
             *last = reason;
         });
@@ -1706,6 +1718,17 @@ pub(crate) fn main_close_press_signal() -> Signal<(u64, crate::desktop::CloseRea
     let signal =
         Owner::detached().run(|| super::signal((0, crate::desktop::CloseReason::default())));
     with_data(|d| d.ambient.main_close_press = Some(signal));
+    signal
+}
+
+/// The requests to quit the app, none until the platform reports one.
+pub(crate) fn quit_request_signal() -> Signal<(u64, crate::desktop::QuitReason)> {
+    if let Some(signal) = with_data(|d| d.ambient.quit_request) {
+        return signal;
+    }
+    let signal =
+        Owner::detached().run(|| super::signal((0, crate::desktop::QuitReason::default())));
+    with_data(|d| d.ambient.quit_request = Some(signal));
     signal
 }
 

@@ -77,6 +77,20 @@ pub enum CloseReason {
     System,
 }
 
+/// How the user or the system asked to quit the app (`quitRequest`'s
+/// `reason`; the main window's `quitOnRequest`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, PropEnum)]
+pub enum QuitReason {
+    /// The application menu's Quit item or the platform's quit key
+    /// (Command-Q, Ctrl+Q).
+    #[default]
+    Menu,
+    /// The Dock's Quit, or another app asking it to quit (macOS).
+    Dock,
+    /// The system: logging out, restarting, shutting down.
+    System,
+}
+
 /// Why a window of the app's own closed (`<Window>`'s `onOpenChange`'s
 /// `reason`): one of the platform's ([`WindowEvent::Closed`]), or the
 /// app's `close()`.
@@ -476,6 +490,11 @@ attributes! {
     /// A press of its close button (or the close key) closes it at once;
     /// `false`: the app hears `closePress` and closes it when it decides.
     close_on_press: bool = "closeOnPress", plain;
+    /// The main window's only: a request to quit the app (its Quit item,
+    /// the quit key, the Dock's Quit, logging out) quits it at once;
+    /// `false`: the app hears `quitRequest` and calls `quit()` when it is
+    /// ready, or keeps running. Ignored on a window of the app's own.
+    quit_on_request: bool = "quitOnRequest", plain;
     /// Escape closes it.
     close_on_escape: bool = "closeOnEscape", plain;
     /// Losing the focus closes it.
@@ -520,6 +539,7 @@ impl WindowAttributes {
             focusable: Some(true),
             activate: Some(true),
             close_on_press: Some(true),
+            quit_on_request: Some(true),
             close_on_escape: Some(false),
             close_on_blur: Some(false),
             level: Some(WindowLevel::Normal),
@@ -830,6 +850,7 @@ pub fn declarations() -> String {
     WindowKind::ts_type(&mut types);
     WindowMode::ts_type(&mut types);
     CloseReason::ts_type(&mut types);
+    QuitReason::ts_type(&mut types);
     WindowCloseCause::ts_type(&mut types);
     WindowControl::ts_type(&mut types);
     ResizeEdge::ts_type(&mut types);
@@ -1056,6 +1077,13 @@ pub enum WindowEvent {
     ClosePress {
         /// How they asked.
         reason: CloseReason,
+    },
+    /// The user or the system asked to quit the app, on the main window
+    /// only, while its `quitOnRequest` is `false`: the app is still
+    /// running, and quits when it calls `quit()`.
+    QuitRequest {
+        /// How they asked.
+        reason: QuitReason,
     },
     /// The platform closed it by itself (a policy the app set: its root
     /// stays until the app removes it, hidden).

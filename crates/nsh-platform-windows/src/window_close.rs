@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use nsh_core::{
     EventKind, EventPayload, ROOT_ID,
-    desktop::{CloseReason, WindowEvent},
+    desktop::{CloseReason, QuitReason, WindowEvent},
 };
 use windows::Win32::{
     Foundation::{HWND, LPARAM, WPARAM},
@@ -31,6 +31,30 @@ const FALLBACK: Duration = Duration::from_millis(250);
 
 /// The timer of [`FALLBACK`] (`SetTimer`'s id on the main window).
 const TIMER: usize = 0x4e53_4843;
+
+/// The user (the Quit item, its key) or the system (ending the session)
+/// asked the app to quit: with the main window's `quitOnRequest: false`
+/// the app hears it and quits when it calls `quit()`. Whether it was
+/// reported (else the app quits as before).
+pub(crate) fn quit_request(surface: &Surface, reason: QuitReason) -> bool {
+    let Some(shell) = crate::window::shell(surface.hwnd()) else {
+        return false;
+    };
+    if shell.attrs().quit_on_request {
+        return false;
+    }
+    let mut running = false;
+    surface.control(|_| running = true);
+    if !running {
+        return false;
+    }
+    surface.event(
+        ROOT_ID,
+        EventKind::Window,
+        EventPayload::Window(Box::new(WindowEvent::QuitRequest { reason })),
+    );
+    true
+}
 
 /// The user asked to close the main window, as `reason` says.
 pub(crate) fn close_press(surface: &Surface, reason: CloseReason) {

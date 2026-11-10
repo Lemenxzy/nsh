@@ -41,6 +41,7 @@ use nsh_core::{
     Bounds, EdgeInsets, EventKind, EventPayload, NodeId, Points, ROOT_ID, Size,
     desktop::{
         Backdrop, CloseReason, DesktopCommand, MainWindowOptions, OpenWindow, ProgressState,
+        QuitReason,
         TitleBarStyle, WindowAttributes, WindowCloseCause, WindowControl, WindowEvent,
         WindowFrameStyle, WindowKind, WindowLevel, WindowMode, WindowPlacement,
         WindowPointerEvents, WindowPosition, WindowProgress, WindowRequest, WindowState,
@@ -327,6 +328,9 @@ fn is_panel(kind: WindowKind) -> bool {
 pub(crate) struct Held {
     /// A close press closes the window at once.
     close_on_press: Cell<bool>,
+    /// The main window's: a quit request quits at once (else the app hears
+    /// it, [`main_quit_request`]).
+    quit_on_request: Cell<bool>,
     /// Escape closes (hides) it.
     close_on_escape: Cell<bool>,
     /// Losing the focus closes (hides) it.
@@ -362,6 +366,7 @@ impl Default for Held {
     fn default() -> Self {
         Held {
             close_on_press: Cell::new(true),
+            quit_on_request: Cell::new(true),
             close_on_escape: Cell::new(false),
             close_on_blur: Cell::new(false),
             activate: Cell::new(true),
@@ -388,6 +393,7 @@ impl Held {
     /// in the surface).
     pub(crate) fn reset(&self) {
         self.close_on_press.set(true);
+        self.quit_on_request.set(true);
         self.close_on_escape.set(false);
         self.close_on_blur.set(false);
         self.activate.set(true);
@@ -715,6 +721,9 @@ fn apply(
     }
     if let Some(v) = a.close_on_press {
         held.close_on_press.set(v);
+    }
+    if let Some(v) = a.quit_on_request {
+        held.quit_on_request.set(v);
     }
     if let Some(v) = a.close_on_escape {
         held.close_on_escape.set(v);
@@ -1772,6 +1781,26 @@ fn close_press(surface: &Rc<Surface>, id: NodeId, window: &NSWindow) -> bool {
         dismiss(surface, id, WindowCloseCause::ClosePress);
     }
     false
+}
+
+/// The user or the system asked the app to quit (`applicationShouldTerminate:`):
+/// with the main window's `quitOnRequest: false` the app hears it and quits
+/// when it calls `quit()`. Whether it was reported (else the app quits as
+/// before).
+pub(crate) fn main_quit_request(surface: &Surface, reason: QuitReason) -> bool {
+    if surface.main_window.quit_on_request.get() {
+        return false;
+    }
+    let sent = Cell::new(false);
+    surface.control(|control| {
+        sent.set(true);
+        control.dispatch_event(
+            ROOT_ID,
+            EventKind::Window,
+            EventPayload::Window(Box::new(WindowEvent::QuitRequest { reason })),
+        );
+    });
+    sent.get()
 }
 
 /// The main window's close press: the app hears of it; with

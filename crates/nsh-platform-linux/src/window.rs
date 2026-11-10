@@ -32,9 +32,9 @@ use gtk4::{self as gtk, cairo, gdk, gio, glib, prelude::*};
 use nsh_core::{
     Bounds, EdgeInsets, EventKind, EventPayload, NodeId, Points, ROOT_ID, Size,
     desktop::{
-        CloseReason, DesktopCommand, Display, DisplayId, MainWindowOptions, OpenWindow, ResizeEdge,
-        TitleBarOptions, TitleBarStyle, WindowAttributes, WindowCloseCause, WindowControl,
-        WindowEvent, WindowFrameStyle, WindowKind, WindowMode, WindowPlacement,
+        CloseReason, DesktopCommand, Display, DisplayId, MainWindowOptions, OpenWindow, QuitReason,
+        ResizeEdge, TitleBarOptions, TitleBarStyle, WindowAttributes, WindowCloseCause,
+        WindowControl, WindowEvent, WindowFrameStyle, WindowKind, WindowMode, WindowPlacement,
         WindowPointerEvents, WindowProgress, WindowRequest, WindowState,
     },
     geometry::{point, size},
@@ -1614,6 +1614,17 @@ pub(crate) fn main_close_request(surface: &Surface) -> glib::Propagation {
             glib::Propagation::Proceed
         }
     }
+}
+
+/// The user asked a standalone app to quit (its Quit item, Ctrl+Q): with
+/// the main window's `quitOnRequest: false` the app hears it and quits
+/// when it calls `quit()`. Whether it was reported (else the app quits).
+pub(crate) fn main_quit_request(surface: &Surface, reason: QuitReason) -> bool {
+    if surface.main_window.borrow().attributes.quit_on_request != Some(false) {
+        return false;
+    }
+    report(surface, ROOT_ID, WindowEvent::QuitRequest { reason });
+    true
 }
 
 /// Applies nsh.json `window` to the main window of a standalone app

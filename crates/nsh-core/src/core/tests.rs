@@ -21243,6 +21243,74 @@ mod rust_windows {
     }
 
     thread_local! {
+        static QUITS: RefCell<Vec<(String, crate::desktop::QuitReason)>> =
+            const { RefCell::new(Vec::new()) };
+    }
+
+    #[component]
+    fn QuitRequests() -> impl IntoElement {
+        let main = crate::element::desktop::main_window();
+        main.set(crate::desktop::WindowAttributes {
+            quit_on_request: Some(false),
+            ..Default::default()
+        });
+        main.on_quit_request(|reason| QUITS.with(|q| q.borrow_mut().push(("main".into(), reason))));
+        view().child(window().id("notes").content(|| {
+            let this = current_window();
+            let id = this.id().to_owned();
+            this.on_quit_request(move |reason| {
+                QUITS.with(|q| q.borrow_mut().push((id.clone(), reason)))
+            });
+            text("Notes")
+        }))
+    }
+
+    #[test]
+    fn the_main_window_hears_quit_requests_and_asks_for_them() {
+        use crate::desktop::QuitReason;
+        let mut c = core();
+        c.set_environment(crate::element::Environment {
+            os: crate::platform::Os::MacOs,
+            ..Default::default()
+        });
+        c.mount_root(&Root::of::<QuitRequests>());
+        let batch = c.commit().unwrap();
+        let commands = desktop_commands(&batch);
+        assert!(
+            commands.iter().any(|(id, c)| *id == crate::ROOT_ID
+                && matches!(
+                    c,
+                    DesktopCommand::SetAttributes(a) if a.quit_on_request == Some(false)
+                )),
+            "the main window asks to hear quit requests: {commands:?}"
+        );
+        let notes = commands
+            .iter()
+            .find_map(|(_, c)| match c {
+                DesktopCommand::OpenWindow(_) => Some(()),
+                _ => None,
+            })
+            .is_some();
+        assert!(notes, "one window opens: {commands:?}");
+        for reason in [QuitReason::Menu, QuitReason::Dock, QuitReason::System] {
+            c.component_event(
+                crate::ROOT_ID,
+                EventKind::Window,
+                &EventPayload::Window(Box::new(WindowEvent::QuitRequest { reason })),
+            );
+            let _ = c.commit();
+        }
+        assert_eq!(
+            QUITS.with(|q| q.borrow().clone()),
+            [
+                ("main".to_owned(), QuitReason::Menu),
+                ("main".to_owned(), QuitReason::Dock),
+                ("main".to_owned(), QuitReason::System),
+            ]
+        );
+    }
+
+    thread_local! {
         static FITTED: RefCell<Option<crate::element::desktop::WindowRef>> =
             const { RefCell::new(None) };
     }

@@ -1049,6 +1049,11 @@ export interface WindowRef {
   /** Listens to it; returns a function that stops. A listener registered
    * while a component renders goes with the component. */
   on(event: "closePress", listener: (event: { reason: CloseReason }) => void): () => void;
+  /** The main window's only: the user or the system asked to quit the app
+   * (the Quit item or the quit key, the Dock's Quit, logging out) while its
+   * `quitOnRequest` is false. The app is still running: save or ask, then
+   * `Application.quit()`, or keep running. */
+  on(event: "quitRequest", listener: (event: { reason: QuitReason }) => void): () => void;
   on(event: "close", listener: () => void): () => void;
   on(event: "focusChange", listener: (event: { focused: boolean }) => void): () => void;
   on(event: "modeChange", listener: (event: { mode: WindowMode; minimized: boolean }) => void): () => void;

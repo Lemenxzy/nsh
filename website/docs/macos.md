@@ -228,6 +228,31 @@ The app's own code quits the same way with `nsh_core::element::desktop::quit()` 
 exited `run_app`'s runner starts the app again with the same arguments: inside an `.app` bundle through Launch Services
 (`open -n`), as when the user opens it.
 
+### Answering a quit request
+
+By default the Quit item, Command-Q, the Dock's Quit and logging out quit the app at once. An app with work it should
+not drop (unsaved changes, a running operation) sets the main window's `quitOnRequest: false` and hears each request
+while its windows and engine are still running, the way `closeOnPress: false` lets it answer a close:
+
+```tsx
+const main = currentWindow();
+main.set({ quitOnRequest: false });
+main.on("quitRequest", ({ reason }) => {
+  // reason: "menu" (Quit item, Command-Q), "dock" (the Dock, another app), "system" (logout, shutdown)
+  if (!hasUnsavedChanges()) Application.quit();
+  else showSaveDialog(); // calls Application.quit() once saved; Cancel keeps the app running
+});
+```
+
+In Rust: `main_window().set(WindowAttributes { quit_on_request: Some(false), ..Default::default() })` and
+`main_window().on_quit_request(|reason| ..)` (`QuitReason`), then `quit()`. Only the main window hears it. As with
+Electron's prevented `before-quit`, NSH declines AppKit's `applicationShouldTerminate:` at once and the app quits when it
+calls `quit()`: during a logout macOS reports that the app stopped it, and the user logs out again once the app has
+quit. On Windows the Quit item and Ctrl+Q ask the app the same way and ending the session waits on the app
+(`WM_QUERYENDSESSION`, `reason: "system"`); on Linux the Quit item and Ctrl+Q ask it, and logging out does not (no
+session inhibitor). A view embedded in another app, a GPUI host, mobile and the web leave quitting to their host:
+`quitOnRequest` has no effect there.
+
 `AppOptions { transparent: true, ..Default::default() }` opens `run_app`'s window nonopaque with a clear
 background, so what the app leaves unpainted shows what is behind the window (a HUD panel, a
 [`macos={{ backdrop }}`](./styling.md#filters-and-blending) with `behindWindow`). This option defaults to `false`.

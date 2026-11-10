@@ -453,6 +453,16 @@ pub(crate) fn restart() {
     }
 }
 
+/// Whether a standalone app ([`run_app`]) is running: not a view embedded
+/// in another app.
+pub(crate) fn is_standalone() -> bool {
+    STANDALONE.with(|s| {
+        s.borrow()
+            .as_ref()
+            .is_some_and(|app| app.upgrade().is_some())
+    })
+}
+
 /// Quits the standalone app ([`run_app`]), as its `quit` role and Ctrl+Q:
 /// its windows close as the user closing them would, then its run ends,
 /// also while something else holds the application (a tray icon). A view

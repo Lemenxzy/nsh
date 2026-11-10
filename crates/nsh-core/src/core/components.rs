@@ -5948,6 +5948,11 @@ impl<M: TextEngine> Core<M> {
                         {
                             self.components.runtime.main_close_pressed(*reason);
                         }
+                        crate::desktop::WindowEvent::QuitRequest { reason }
+                            if id == crate::ROOT_ID =>
+                        {
+                            self.components.runtime.quit_requested(*reason);
+                        }
                         _ => {}
                     }
                 }

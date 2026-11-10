@@ -44,8 +44,8 @@ use gtk4::{self as gtk, gdk, gio, glib, prelude::*};
 use nsh_core::{
     EventKind, EventPayload, ImageSource, PayloadValue, ROOT_ID,
     desktop::{
-        CloseReason, DesktopCommand, Key, MenuItem, MenuRole, Shortcut, TitleBarOptions,
-        TitleBarStyle,
+        CloseReason, DesktopCommand, Key, MenuItem, MenuRole, QuitReason, Shortcut,
+        TitleBarOptions, TitleBarStyle,
     },
     geometry::{Edges, Points},
 };
@@ -839,6 +839,10 @@ fn popup(surface: &Rc<Surface>, items: &[MenuItem], at: Option<(f32, f32)>) {
 /// about the rest.
 pub(crate) fn choose(surface: &Rc<Surface>, id: u32, role: Option<MenuRole>) {
     match role {
+        // With `quitOnRequest: false` the app answers (`quit()`).
+        Some(MenuRole::Quit)
+            if crate::app::is_standalone()
+                && crate::window::main_quit_request(surface, QuitReason::Menu) => {}
         Some(MenuRole::Quit) if crate::app::quit() => {}
         // A view embedded in another app closes its window, as before.
         Some(MenuRole::Quit) => close(surface),

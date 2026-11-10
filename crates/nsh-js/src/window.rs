@@ -50,6 +50,7 @@ const UNDEFINED: JsValue = qjs::JS_UNDEFINED;
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Event {
     ClosePress,
+    QuitRequest,
     Close,
     FocusChange,
     ModeChange,
@@ -61,6 +62,7 @@ impl Event {
     fn parse(name: &str) -> Option<Event> {
         Some(match name {
             "closePress" => Event::ClosePress,
+            "quitRequest" => Event::QuitRequest,
             "close" => Event::Close,
             "focusChange" => Event::FocusChange,
             "modeChange" => Event::ModeChange,
@@ -631,7 +633,7 @@ fn on(cx: *mut JsContext, window: NodeId, event: JsValue, f: JsValue) -> JsValue
     let Some(event) = name.as_deref().and_then(Event::parse) else {
         return type_error(
             cx,
-            "WindowRef.on: the event is \"closePress\", \"close\", \"focusChange\", \"modeChange\", \"boundsChange\" or \"displayChange\"",
+            "WindowRef.on: the event is \"closePress\", \"quitRequest\", \"close\", \"focusChange\", \"modeChange\", \"boundsChange\" or \"displayChange\"",
         );
     };
     // SAFETY: an inline check.
@@ -797,6 +799,14 @@ pub(crate) fn platform_event(cx: *mut JsContext, id: NodeId, event: &WindowEvent
             let o = new_object(cx);
             set(cx, o, c"reason", encode(cx, reason));
             fire(cx, id, Event::ClosePress, o);
+        }
+        // The main window's only (`quitOnRequest: false`).
+        WindowEvent::QuitRequest { reason } => {
+            if id == ROOT_ID {
+                let o = new_object(cx);
+                set(cx, o, c"reason", encode(cx, reason));
+                fire(cx, id, Event::QuitRequest, o);
+            }
         }
         WindowEvent::Closed { cause } => {
             if id != ROOT_ID {

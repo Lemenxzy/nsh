@@ -9,13 +9,15 @@ use std::{
 };
 
 use nsh_core::{
+    desktop::QuitReason,
     geometry::{Size, px},
     platform::{Appearance, Locale},
 };
 use nsh_engine::{App, Bundle, ColorScheme, EngineConfig, Environment, Idiom, Limits, Os, Root};
 use objc2::{
     MainThreadMarker, MainThreadOnly, define_class, msg_send, rc::Retained,
-    runtime::ProtocolObject, sel,
+    runtime::{AnyObject, ProtocolObject},
+    sel,
 };
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate,
@@ -768,6 +770,22 @@ define_class!(
 
         #[unsafe(method(applicationShouldTerminate:))]
         fn should_terminate(&self, app: &NSApplication) -> NSApplicationTerminateReply {
+            // With `quitOnRequest: false` the app answers: it calls `quit()`
+            // ([`quit_app`]) or keeps running. As Electron's prevented
+            // `before-quit`, the request is declined now rather than held
+            // with `NSTerminateLater`, which would keep the run loop in its
+            // modal mode until a reply the app has no API to cancel.
+            let surface = RUNNING.with(|running| {
+                running
+                    .borrow()
+                    .as_ref()
+                    .map(|running| running.view.surface().clone())
+            });
+            if let Some(surface) = surface
+                && crate::window::main_quit_request(&surface, quit_reason())
+            {
+                return NSApplicationTerminateReply::TerminateCancel;
+            }
             finish_running(app);
             // The caller owns process termination after run_app returns.
             NSApplicationTerminateReply::TerminateCancel
@@ -894,6 +912,35 @@ pub(crate) fn restart_app() {
             finish_running(&NSApplication::sharedApplication(mtm));
         }
     });
+}
+
+/// Why AppKit asks to terminate: no Apple event for the Quit item and the
+/// quit key (`terminate:`), a quit event with a reason for logging out,
+/// restarting and shutting down, one without from the Dock or another app.
+fn quit_reason() -> QuitReason {
+    /// `kAEQuitReason`: `'why?'`.
+    const QUIT_REASON: u32 = u32::from_be_bytes(*b"why?");
+    // SAFETY: NSAppleEventManager's documented class methods and
+    // NSAppleEventDescriptor's, on the main thread (the app delegate's).
+    unsafe {
+        let manager: Option<Retained<AnyObject>> =
+            msg_send![objc2::class!(NSAppleEventManager), sharedAppleEventManager];
+        let Some(manager) = manager else {
+            return QuitReason::Menu;
+        };
+        let event: Option<Retained<AnyObject>> = msg_send![&*manager, currentAppleEvent];
+        let Some(event) = event else {
+            return QuitReason::Menu;
+        };
+        let why: Option<Retained<AnyObject>> =
+            msg_send![&*event, attributeDescriptorForKeyword: QUIT_REASON];
+        let code: u32 = why.map_or(0, |why| msg_send![&*why, typeCodeValue]);
+        if code == 0 {
+            QuitReason::Dock
+        } else {
+            QuitReason::System
+        }
+    }
 }
 
 /// Ends the standalone event loop, returning process ownership to its caller.

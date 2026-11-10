@@ -41,7 +41,8 @@ use std::{
 use nsh_core::{
     Color, EventKind, EventPayload, ImageSource, PayloadValue, ROOT_ID,
     desktop::{
-        DesktopCommand, Key, MenuAction, MenuItem, MenuRole, Shortcut, WindowRequest, menu_icon,
+        DesktopCommand, Key, MenuAction, MenuItem, MenuRole, QuitReason, Shortcut, WindowRequest,
+        menu_icon,
     },
     geometry::{Edges, Points},
 };
@@ -1366,7 +1367,12 @@ fn choose(surface: &Rc<Surface>, id: u32, role: Option<MenuRole>) {
     let hwnd = surface.hwnd();
     match role {
         // An embedding app's window is its own to close or keep.
-        Some(MenuRole::Quit) if top_level(hwnd) => quit(surface),
+        // With `quitOnRequest: false` the app answers (`quit()`).
+        Some(MenuRole::Quit) if top_level(hwnd) => {
+            if !crate::window_close::quit_request(surface, QuitReason::Menu) {
+                quit(surface);
+            }
+        }
         Some(MenuRole::Quit | MenuRole::Close) => {
             // As the window menu's Close: the app hears a close press.
             if let Some(shell) = crate::window::shell(hwnd) {

@@ -25,7 +25,7 @@ use std::{
     },
 };
 
-use nsh_core::{NodeId, ROOT_ID};
+use nsh_core::{NodeId, ROOT_ID, desktop::QuitReason};
 use windows::{
     Win32::{
         Foundation::{COLORREF, HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
@@ -1402,6 +1402,15 @@ fn window_api(
         WM_DISPLAYCHANGE => {
             crate::window_state::displays_changed(surface);
             None
+        }
+        // The session is ending: with `quitOnRequest: false` the app hears
+        // it and the session waits (Windows shows the app as blocking it)
+        // until the app quits or the user goes on.
+        WM_QUERYENDSESSION
+            if data.window.is_none()
+                && crate::window_close::quit_request(surface, QuitReason::System) =>
+        {
+            Some(Some(LRESULT(0)))
         }
         WM_CLOSE => {
             let reason = shell.take_close_reason();

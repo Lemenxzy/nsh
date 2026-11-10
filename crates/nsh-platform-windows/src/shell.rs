@@ -57,6 +57,9 @@ pub(crate) struct Attrs {
     pub(crate) focusable: bool,
     pub(crate) activate: bool,
     pub(crate) close_on_press: bool,
+    /// The main window's: a quit request quits at once (else the app hears
+    /// it, [`crate::window_close::quit_request`]).
+    pub(crate) quit_on_request: bool,
     pub(crate) close_on_escape: bool,
     pub(crate) close_on_blur: bool,
     pub(crate) level: WindowLevel,
@@ -85,6 +88,7 @@ impl Default for Attrs {
             focusable: true,
             activate: true,
             close_on_press: true,
+            quit_on_request: true,
             close_on_escape: false,
             close_on_blur: false,
             level: WindowLevel::Normal,
@@ -130,6 +134,7 @@ impl Attrs {
             focusable,
             activate,
             close_on_press,
+            quit_on_request,
             close_on_escape,
             close_on_blur,
             level,
