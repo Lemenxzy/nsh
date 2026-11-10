@@ -22,7 +22,7 @@ import toggleSound from "./sounds/toggle.wav";
 import warningSound from "./sounds/warning.wav";
 import { type DemoEntry, nav, shownDemo } from "./nav";
 import { field } from "../nsh-gallery-ui/demo";
-import { alpha, Appear, Banner, colors, desktop, focusedSection, focusRing, header, hovered, IconTile, isDark, lazy, Logo, menuItemLabel, menuItemLook, MenuPanel, radius, PageHeader, Press, scrollbarTheme, SIDEBAR, sidebarOpen, TERMINAL_COLUMN, TERMINAL_GAP, TERMINAL_ROW, terminal, SoundToggle, ThemeToggle, ToolButton } from "./ui";
+import { alpha, Appear, Banner, colors, desktop, focusedSection, focusRing, header, hovered, IconTile, isDark, lazy, Logo, menuItemLabel, menuItemLook, menuPopup, radius, PageHeader, Press, scrollbarTheme, SIDEBAR, sidebarOpen, TERMINAL_COLUMN, TERMINAL_GAP, TERMINAL_ROW, terminal, SoundToggle, ThemeToggle, ToolButton } from "./ui";
 
 // Loaded once, ahead of the first press: a sound plays within a frame then.
 loadSounds({
@@ -615,12 +615,10 @@ function SettingsMenu() {
     </View>
   );
   return (
-    <Menu placement="top" align="end" offset={6} margin={8} trigger={trigger}>
-      <MenuPanel side="top" minWidth={210}>
-        <SettingItem label="Performance monitor" icon={<LucideIcon name="activity" size={16} tint={colors.muted} />} checked={fpsEnabled()} onSelect={() => setFpsEnabled(!fpsEnabled())} />
-        <SettingItem label="Sounds" icon={<Icon name="volume-high" size={16} tint={colors.muted} />} checked={soundsOn()} onSelect={flipSounds} />
-        <SettingItem label="Dark appearance" icon={<LucideIcon name="moon" size={16} tint={colors.muted} />} checked={isDark()} onSelect={() => setColorScheme(isDark() ? "light" : "dark")} />
-      </MenuPanel>
+    <Menu placement="top" align="end" offset={6} margin={8} {...menuPopup({ side: "top", minWidth: 210 })} trigger={trigger}>
+      <SettingItem label="Performance monitor" icon={<LucideIcon name="activity" size={16} tint={colors.muted} />} checked={fpsEnabled()} onSelect={() => setFpsEnabled(!fpsEnabled())} />
+      <SettingItem label="Sounds" icon={<Icon name="volume-high" size={16} tint={colors.muted} />} checked={soundsOn()} onSelect={flipSounds} />
+      <SettingItem label="Dark appearance" icon={<LucideIcon name="moon" size={16} tint={colors.muted} />} checked={isDark()} onSelect={() => setColorScheme(isDark() ? "light" : "dark")} />
     </Menu>
   );
 }
